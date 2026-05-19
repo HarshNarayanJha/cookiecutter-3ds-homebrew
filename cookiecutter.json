@@ -1,0 +1,8 @@
+{
+  "project_name": "My 3DS Homebrew",
+  "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '_') }}",
+  "author_name": "Your Name",
+  "description": "3DS homebrew project",
+  "title_id": "0xff3ff",
+  "product_code": "CTR-P-TEMP"
+}
