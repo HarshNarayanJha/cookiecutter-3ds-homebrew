@@ -31,6 +31,10 @@
 #     Compile one or more .t3s files into .t3x S
 #     graphics directory.
 #
+#   add_romfs_directory(targetName sourceDir)
+#     Recursively copies files from a source directory (like txt files)
+#     to the build ROMFS directory at build-time, tracking file dependencies.
+#
 #   add_t3x_library(target t3s_files...)
 #     Compile and embed .t3x files into a binary library suitable for linking
 #     into an executable.
@@ -763,3 +767,75 @@ macro(target_embed_shader _target)
     add_shbin_library(__${_target}_embed_${__1st_file_wd} ${ARGN})
     target_link_libraries(${_target} __${_target}_embed_${__1st_file_wd})
 endmacro()
+
+############################################################################
+# add_romfs_directory
+# ^^^^^^^^^^^^^^^^^^^
+#
+# Recursively registers all files in a source directory to be copied to the
+# build ROMFS directory at build-time. This ensures that when files in the
+# source folder are added or modified, they are automatically copied and trigger
+# rebuilding of the final executable/3dsx.
+#
+# Usage:
+#   add_romfs_directory(targetName sourceDir)
+#
+#   targetName - The ROMFS asset target name (e.g. ${_3DSXTOOL_ROMFS})
+#   sourceDir  - Source directory containing files (e.g. ${PROJECT_SOURCE_DIR}/romfs)
+############################################################################
+function(add_romfs_directory targetName sourceDir)
+    if(NOT EXISTS "${sourceDir}")
+        message(WARNING "add_romfs_directory: Source directory does not exist: ${sourceDir}")
+        return()
+    endif()
+
+    if(NOT DEFINED ROMFS_DIR)
+        set(ROMFS_DIR "${CMAKE_CURRENT_BINARY_DIR}/romfs")
+    endif()
+
+    # Find all files recursively in the source directory (ignoring directories themselves)
+    file(GLOB_RECURSE __romfs_files RELATIVE "${sourceDir}" "${sourceDir}/*")
+
+    set(__outputs)
+    foreach(__file ${__romfs_files})
+        # Skip any files that are within graphics/t3s source path if desired, or copy everything
+        set(__src "${sourceDir}/${__file}")
+        set(__dst "${ROMFS_DIR}/${__file}")
+
+        get_filename_component(__dst_dir "${__dst}" DIRECTORY)
+
+        add_custom_command(
+        OUTPUT "${__dst}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${__dst_dir}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${__src}" "${__dst}"
+        DEPENDS "${__src}"
+        COMMENT "Copying ROMFS asset: ${__file}"
+        VERBATIM
+      )
+        list(APPEND __outputs "${__dst}")
+    endforeach()
+
+    if(TARGET ${targetName})
+        # Target exists (likely created by generate_t3xs)
+        set(__copy_target "${targetName}_copies")
+        add_custom_target(${__copy_target} DEPENDS ${__outputs})
+        add_dependencies(${targetName} ${__copy_target})
+
+        get_target_property(__existing_assets ${targetName} ASSET_FILES)
+        if(__existing_assets)
+            list(APPEND __existing_assets ${__outputs})
+        else()
+            set(__existing_assets ${__outputs})
+        endif()
+        set_target_properties(${targetName} PROPERTIES
+        ASSET_FILES "${__existing_assets}"
+      )
+    else()
+        # Create the asset target if it does not exist yet
+        add_custom_target(${targetName} ALL DEPENDS ${__outputs})
+        set_target_properties(${targetName} PROPERTIES
+        ASSET_FOLDER "${ROMFS_DIR}"
+        ASSET_FILES "${__outputs}"
+      )
+    endif()
+endfunction()

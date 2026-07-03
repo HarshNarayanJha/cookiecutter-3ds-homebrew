@@ -52,6 +52,9 @@ generate_t3xs(${_3DSXTOOL_ROMFS}
     ${GRAPHICS_DIR}/sprites.t3s
 )
 
+# copy other romfs files (non-texture assets, data files) at build time
+add_romfs_directory(${_3DSXTOOL_ROMFS} ${CMAKE_CURRENT_SOURCE_DIR}/romfs)
+
 add_executable({{cookiecutter.project_slug}} ${SOURCE_FILES})
 target_link_libraries({{cookiecutter.project_slug}} 3ds::citro2d 3ds::citro3d 3ds::ctrulib)
 target_compile_definitions({{cookiecutter.project_slug}} PRIVATE)
